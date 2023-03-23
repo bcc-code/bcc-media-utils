@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"embed"
+	"html/template"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +12,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed templates/*
+var embededTemplates embed.FS
 
 func validateKey(in string) bool {
 	if in == "" {
@@ -26,9 +31,14 @@ type data struct {
 }
 
 func main() {
+	tmpl, err := template.ParseFS(embededTemplates, "templates/*.html")
+	if err != nil {
+		panic(err)
+	}
+
 	r := gin.New()
-	r.LoadHTMLGlob("templates/*")
 	r.Use(cors.Default())
+	r.SetHTMLTemplate(tmpl)
 	cntChan := make(chan data, 10000)
 	counters := map[string](map[string]int){}
 
