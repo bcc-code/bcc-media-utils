@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
 	"cloud.google.com/go/bigquery"
@@ -79,15 +80,21 @@ func handleRequest(c *gin.Context) {
 			Msg("Import failed")
 		return
 	}
+
+	// Send heartbeat to Betteruptime
+	if heartbeatURL != "" {
+		_, _ = http.Get(heartbeatURL)
+	}
 }
 
 var schema bigquery.Schema
 var (
-	projectID   string
-	datasetID   string
-	tableID     string
-	gcpBucketID string
-	npawID      string
+	projectID    string
+	datasetID    string
+	tableID      string
+	gcpBucketID  string
+	npawID       string
+	heartbeatURL string
 )
 
 func main() {
@@ -129,6 +136,8 @@ func main() {
 	if npawID == "" {
 		log.L.Panic().Msg("Empty NPAWID")
 	}
+
+	heartbeatURL = os.Getenv("HEARTBEATURL")
 
 	c := gin.Default()
 	c.POST("/", handleRequest)

@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -30,6 +31,29 @@ type data struct {
 	Question string
 }
 
+type avgData struct {
+	Group string
+	Value int64
+}
+
+type average struct {
+	Total int64
+	Count int
+}
+
+func (a *average) Add(val int64) {
+	a.Total += val
+	a.Count += 1
+}
+
+func (a *average) Get() float64 {
+	if a.Count == 0 {
+		return 0.0
+	}
+
+	return float64(a.Total) / float64(a.Count)
+}
+
 func main() {
 	tmpl, err := template.ParseFS(embededTemplates, "templates/*.html")
 	if err != nil {
@@ -40,7 +64,10 @@ func main() {
 	r.Use(cors.Default())
 	r.SetHTMLTemplate(tmpl)
 	cntChan := make(chan data, 10000)
+	avgChan := make(chan avgData, 10000)
 	counters := map[string](map[string]int){}
+	averages := map[string]average{}
+	percentCounters := map[string](map[string]float64){}
 
 	key = os.Getenv("KEY")
 
@@ -98,6 +125,8 @@ func main() {
 					}
 				}
 
+				percentCounters = percent
+
 				for k, v := range percent {
 					_, err := coll.Doc(k).Set(bgCtx, v)
 					if err != nil {
@@ -126,9 +155,47 @@ func main() {
 		c.Status(http.StatusAccepted)
 	})
 
+	r.GET("/average/:group/:value", func(c *gin.Context) {
+		val, err := strconv.ParseInt(c.Param("value"), 10, 64)
+		if err != nil || val < 0 || val > 18 {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+
+		key := avgData{
+			Group: c.Param("group"),
+			Value: val,
+		}
+
+		avgChan <- key
+		c.Status(http.StatusAccepted)
+	})
+
 	// This is the endpoint that the clients will call to get the current counters
 	r.GET("/show", func(c *gin.Context) {
 		c.JSON(http.StatusOK, counters)
+	})
+
+	// This is the endpoint that the clients will call to get the current counters as percentages
+	r.GET("/showpercent", func(c *gin.Context) {
+		c.JSON(http.StatusOK, percentCounters)
+	})
+
+	r.GET("/showavg", func(c *gin.Context) {
+		out := gin.H{}
+		sumTotal := int64(0)
+		sumCont := 0
+		for k, v := range averages {
+			out[k] = v.Get()
+			sumTotal += v.Total
+			sumCont += v.Count
+		}
+
+		out["total"] = 0
+		if sumCont > 0 {
+			out["total"] = float64(sumTotal) / float64(sumCont)
+		}
+		c.JSON(http.StatusOK, out)
 	})
 
 	// This renders a simple html page that can be used to reset the counters if one has the key
@@ -145,6 +212,7 @@ func main() {
 		}
 
 		counters = map[string](map[string]int){}
+		averages = map[string]average{}
 		c.JSON(http.StatusOK, gin.H{"reset": "ok"})
 	})
 
@@ -159,6 +227,19 @@ func main() {
 			}
 
 			counters[key.Group][key.Question] += 1
+		}
+
+	}()
+
+	go func() {
+		for key := range avgChan {
+			if _, ok := averages[key.Group]; !ok {
+				averages[key.Group] = average{}
+			}
+
+			a := averages[key.Group]
+			a.Add(key.Value)
+			averages[key.Group] = a
 		}
 
 	}()
