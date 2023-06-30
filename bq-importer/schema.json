@@ -473,5 +473,10 @@
     "mode": "NULLABLE",
     "name": "avg_bitrate",
     "type": "FLOAT"
+  },
+  {
+	  "mode": "NULLABLE",
+	  "name": "resolution",
+	  "type": "STRING"
   }
 ]

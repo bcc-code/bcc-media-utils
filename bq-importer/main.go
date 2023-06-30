@@ -11,6 +11,7 @@ import (
 	"github.com/bcc-code/mediabank-bridge/log"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 )
 
 func importIntoBQ(source string) error {
@@ -28,7 +29,12 @@ func importIntoBQ(source string) error {
 	loader.WriteDisposition = bigquery.WriteAppend
 
 	job, err := loader.Run(ctx)
-	if err != nil {
+	if err != nil || job.LastStatus().Err() != nil {
+		errs := []string{}
+		lo.ForEach(job.LastStatus().Errors, func(e *bigquery.Error, _ int) {
+			errs = append(errs, e.Error())
+		})
+		log.L.Error().Strs("Errors", errs).Msg("Error running import job")
 		return merry.Wrap(err)
 	}
 
@@ -37,10 +43,18 @@ func importIntoBQ(source string) error {
 		Msg("Started import job")
 
 	status, err := job.Wait(ctx)
-	if err != nil {
+	if err != nil || status.Err() != nil {
+		errs := []string{}
+		lo.ForEach(job.LastStatus().Errors, func(e *bigquery.Error, _ int) {
+			errs = append(errs, e.Error())
+		})
+		log.L.Error().Strs("Errors", errs).Msg("Error running import job")
 		return merry.Wrap(err)
 	}
 
+	log.L.Info().
+		Str("JobID", job.ID()).
+		Msg("Finished import job")
 	return merry.Wrap(status.Err())
 }
 
@@ -83,7 +97,13 @@ func handleRequest(c *gin.Context) {
 
 	// Send heartbeat to Betteruptime
 	if heartbeatURL != "" {
-		_, _ = http.Get(heartbeatURL)
+		_, err = http.Get(heartbeatURL)
+		if err != nil {
+			log.L.Error().
+				Err(err).
+				Msg("Heartbeat failed")
+			return
+		}
 	}
 }
 
