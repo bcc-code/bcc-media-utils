@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-func readTimeSeriesValue(projectID, metricType string) (map[string]float64, error) {
+func readTimeSeriesValue(projectID, serviceName, metricType string) (map[string]float64, error) {
 	ctx := context.Background()
 	c, err := monitoring.NewMetricClient(ctx)
 	if err != nil {
@@ -26,7 +26,7 @@ func readTimeSeriesValue(projectID, metricType string) (map[string]float64, erro
 
 	req := &monitoringpb.ListTimeSeriesRequest{
 		Name:   "projects/" + projectID,
-		Filter: fmt.Sprintf("metric.type=\"%s\" resource.labels.service_name=\"api-prod\" ", metricType),
+		Filter: fmt.Sprintf("metric.type=\"%s\" resource.labels.service_name=\"%s\" ", metricType, serviceName),
 		Aggregation: &monitoringpb.Aggregation{
 			AlignmentPeriod: &durationpb.Duration{Seconds: 60},
 			GroupByFields:   []string{"labels.response_code_class"},
@@ -56,13 +56,15 @@ func readTimeSeriesValue(projectID, metricType string) (map[string]float64, erro
 
 func main() {
 	projectID := os.Getenv("PROJECT_ID")
+	serviceName := os.Getenv("SERVICE_NAME")
+
 	r := gin.Default()
 	r.GET("/stats", func(c *gin.Context) {
 		if c.Query("key") != os.Getenv("API_KEY") {
 			c.AbortWithStatus(401)
 		}
 
-		data, err := readTimeSeriesValue(projectID, "run.googleapis.com/request_count")
+		data, err := readTimeSeriesValue(projectID, serviceName, "run.googleapis.com/request_count")
 		if err != nil {
 			panic(err)
 		}
