@@ -17,3 +17,5 @@
 .env
 bq-importer/bq-importe*
 .DS_Store
+
+.idea
