@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/bcc-code/mediabank-bridge/log"
 	"github.com/samber/lo"
 	"net/http"
 	"os"
-	"strings"
+	"path/filepath"
 	"time"
 )
 
@@ -27,27 +29,13 @@ func newWatcher(path string, interval time.Duration, callbackUrl string) *watche
 	}
 }
 
-func listDirectory(path string) []string {
-	var result []string
-	entries, _ := os.ReadDir(path)
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-		if !entry.IsDir() {
-			result = append(result, entry.Name())
-		} else {
-			result = append(result, listDirectory(path+"/"+entry.Name())...)
-		}
-	}
-	return lo.Map(result, func(i string, _ int) string {
-		return path + "/" + i
-	})
-}
-
 func (w *watcher) doWatch() {
 	log.L.Debug().Str("path", w.path).Msg("Iterating through folder")
-	files := listDirectory(w.path)
+	files, err := filepath.Glob(w.path)
+	if err != nil {
+		log.L.Error().Err(err).Send()
+		return
+	}
 
 	for _, file := range files {
 		stats, err := os.Stat(file)
@@ -65,19 +53,30 @@ func (w *watcher) doWatch() {
 			w.recentlyUpdated = lo.Filter(w.recentlyUpdated, func(i string, _ int) bool {
 				return i != file
 			})
-			w.fileUpdated(file)
+			w.fileUpdated(file, stats)
 		}
 	}
 	w.lastUpdated = time.Now()
 }
 
-func (w *watcher) fileUpdated(file string) {
-	log.L.Debug().Str("file", file).Msg("File updated!")
+type callbackRequest struct {
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Size      int64     `json:"size"`
+}
+
+func (w *watcher) fileUpdated(path string, file os.FileInfo) {
+	log.L.Debug().Str("file", file.Name()).Msg("File updated!")
 
 	if w.callbackUrl != "" {
-		callbackUrl := strings.ReplaceAll(w.callbackUrl, "{file}", file)
-
-		_, err := http.Get(callbackUrl)
+		str, _ := json.Marshal(callbackRequest{
+			Name:      file.Name(),
+			Size:      file.Size(),
+			Path:      path,
+			UpdatedAt: file.ModTime(),
+		})
+		_, err := http.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
 		if err != nil {
 			log.L.Error().Err(err).Send()
 		}
