@@ -14,7 +14,7 @@ func main() {
 	log.ConfigureGlobalLogger(zerolog.DebugLevel)
 
 	watchDirsString := flag.String("dir", "", "directories to watch (comma-separated)")
-	callbackUrlString := flag.String("callback", "", "callback url. supports {file} as placeholder for filepath")
+	callbackUrlString := flag.String("callback", "", "callback url")
 
 	flag.Parse()
 
