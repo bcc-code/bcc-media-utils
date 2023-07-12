@@ -41,26 +41,14 @@ func jobPostHandler(client *cantemo.Client, queue *jobs.Queue) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		body := ctx.Request.Body
 		q, _ := io.ReadAll(body)
-		res, err := client.Search().Put(string(q), 1)
+		ids, err := getItemIDsFromSearchQuery(client, string(q))
 		if err != nil {
 			log.L.Error().Err(err).Send()
+			ctx.Status(500)
 			return
 		}
 
-		var ids []string
-		for _, r := range res.Results {
-			ids = append(ids, r.VidispineId)
-		}
-
-		for res.Page < res.Pages {
-			res, err = client.Search().Put(string(q), res.Page+1)
-			if err != nil {
-				log.L.Error().Err(err).Send()
-			}
-			for _, r := range res.Results {
-				ids = append(ids, r.VidispineId)
-			}
-		}
+		iterateThroughIDs(client, ids)
 
 		ctx.JSON(200, ids)
 	}
