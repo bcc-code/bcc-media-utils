@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/bcc-code/mediabank-bridge/log"
-	"github.com/samber/lo"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/bcc-code/mediabank-bridge/log"
+	"github.com/samber/lo"
 )
 
 type watcher struct {
@@ -70,13 +71,19 @@ func (w *watcher) fileUpdated(path string, file os.FileInfo) {
 	log.L.Debug().Str("file", file.Name()).Msg("File updated!")
 
 	if w.callbackUrl != "" {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			log.L.Error().Err(err).Send()
+		}
+
 		str, _ := json.Marshal(callbackRequest{
 			Name:      file.Name(),
 			Size:      file.Size(),
-			Path:      path,
+			Path:      absPath,
 			UpdatedAt: file.ModTime(),
 		})
-		_, err := http.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
+
+		_, err = http.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
 		if err != nil {
 			log.L.Error().Err(err).Send()
 		}
