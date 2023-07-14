@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/bcc-code/bccm-utils/scheduler/cantemo"
+	"github.com/bcc-code/bccm-utils/scheduler/jobs"
 	"github.com/bcc-code/mediabank-bridge/log"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -24,12 +25,12 @@ func main() {
 
 	client := cantemo.New(os.Getenv("CANTEMO_URL"), os.Getenv("CANTEMO_AUTH_TOKEN"))
 
-	q := newQueue(5, func(id string) error {
+	q := jobs.NewQueue(5, func(id string) error {
 		time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
 		return nil
 	})
 
-	go q.run(context.Background())
+	go q.Run(context.Background())
 
 	r := gin.Default()
 	r.GET("jobs", func(ctx *gin.Context) {
@@ -43,7 +44,7 @@ func main() {
 	}
 }
 
-func jobPostHandler(client *cantemo.Client, queue *queue) gin.HandlerFunc {
+func jobPostHandler(client *cantemo.Client, queue *jobs.Queue) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		body := ctx.Request.Body
 		q, _ := io.ReadAll(body)
@@ -55,7 +56,7 @@ func jobPostHandler(client *cantemo.Client, queue *queue) gin.HandlerFunc {
 		}
 
 		for _, id := range ids {
-			queue.queue(id)
+			queue.Queue(id)
 		}
 
 		ctx.JSON(200, ids)
