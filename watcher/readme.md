@@ -6,7 +6,7 @@ Whenever a change is detected, a webhook is triggered.
 
 ## Cache
 
-Under certain circumstances the results of the `FileStat()` call are cached on
+Under certain circumstances the results of the `File.Stat()` call are cached on
 the OS/FS level for a relatively long time. This is usually desirable to improve
 the performance but in case of a watcher like this it is not desirable as we will
 not pick up on any changes.
