@@ -71,4 +71,6 @@ func main() {
 
 		c.JSON(200, data)
 	})
+
+	r.Run(":" + os.Getenv("PORT")) // listen and serve on
 }
