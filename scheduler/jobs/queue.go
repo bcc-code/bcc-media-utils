@@ -12,13 +12,13 @@ type Queue struct {
 	QueuedIDs     []string `json:"queuedIds"`
 	ProcessingIDs []string `json:"processingIds"`
 	concurrency   int
-	processID     func(id string) error
+	do            func(id string) error
 }
 
-func NewQueue(concurrency int, processID func(id string) error) *Queue {
+func NewQueue(concurrency int, do func(id string) error) *Queue {
 	return &Queue{
 		concurrency: concurrency,
-		processID:   processID,
+		do:          do,
 	}
 }
 
@@ -62,7 +62,7 @@ func (q *Queue) add(id string) {
 
 	go func() {
 		log.L.Debug().Str("id", id).Msg("processing id")
-		err := q.processID(id)
+		err := q.do(id)
 		if err != nil {
 			log.L.Error().Err(err).Send()
 			return
