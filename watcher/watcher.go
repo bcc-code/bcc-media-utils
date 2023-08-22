@@ -57,7 +57,7 @@ func (w *watcher) doWatch() {
 			w.fileSizes[file] = size
 			continue
 		}
-		if stats.ModTime().After(w.lastUpdated) && oldSize < size {
+		if oldSize < size {
 			if !lo.Contains(w.recentlyUpdated, file) {
 				w.recentlyUpdated = append(w.recentlyUpdated, file)
 			}
