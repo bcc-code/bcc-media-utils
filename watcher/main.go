@@ -6,6 +6,8 @@ import (
 	"github.com/bcc-code/mediabank-bridge/log"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo/parallel"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,8 +24,13 @@ func main() {
 
 	ctx := context.Background()
 
+	interval, err := strconv.Atoi(os.Getenv("WATCHER_INTERVAL"))
+	if err != nil {
+		interval = 10
+	}
+
 	parallel.ForEach(dirsToWatch, func(dir string, _ int) {
-		w := newWatcher(dir, time.Second*5, *callbackUrlString)
+		w := newWatcher(dir, time.Second*time.Duration(interval), *callbackUrlString)
 		w.run(ctx)
 	})
 }
