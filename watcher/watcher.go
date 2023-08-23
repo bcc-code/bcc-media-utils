@@ -35,7 +35,6 @@ func newWatcher(path string, interval time.Duration, callbackUrl string) *watche
 }
 
 func (w *watcher) doWatch() {
-	log.L.Debug().Str("path", w.path).Msg("Iterating through folder")
 	files, err := filepath.Glob(w.path)
 	if err != nil {
 		log.L.Error().Err(err).Send()
