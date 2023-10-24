@@ -72,6 +72,8 @@ func main() {
 	key = os.Getenv("KEY")
 
 	bgCtx := context.Background()
+
+	firestoreEnabled := os.Getenv("FIRESTORE_ENABLED")
 	client, err := firestore.NewClient(bgCtx, "paske-2023")
 
 	if err != nil {
@@ -127,12 +129,14 @@ func main() {
 
 				percentCounters = percent
 
-				for k, v := range percent {
-					_, err := coll.Doc(k).Set(bgCtx, v)
-					if err != nil {
-						println(err.Error())
-					} else {
-						println("Updated FS")
+				if firestoreEnabled == "true" {
+					for k, v := range percent {
+						_, err := coll.Doc(k).Set(bgCtx, v)
+						if err != nil {
+							println(err.Error())
+						} else {
+							println("Updated FS")
+						}
 					}
 				}
 			}
