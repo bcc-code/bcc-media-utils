@@ -1,0 +1,36 @@
+name: Deploy Worker Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "watcher/**"
+      - "watcher.Dockerfile"
+
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push worker image
+        env:
+          IMAGE_NAME_LATEST: ghcr.io/bcc-code/bcc-media/file-watcher:latest
+          IMAGE_NAME: ghcr.io/bcc-code/bcc-media/file-watcher:${{ github.sha }}
+        run: |
+          docker build . --file watcher.Dockerfile --tag $IMAGE_NAME
+          docker tag $IMAGE_NAME $IMAGE_NAME_LATEST
+          docker push $IMAGE_NAME
+          docker push $IMAGE_NAME_LATEST
