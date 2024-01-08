@@ -51,6 +51,9 @@ func (w *watcher) doWatch() {
 			continue
 		}
 		size := stats.Size()
+		if size == 0 {
+			continue
+		}
 		oldSize, ok := w.fileSizes[file]
 		if !ok {
 			w.fileSizes[file] = size
