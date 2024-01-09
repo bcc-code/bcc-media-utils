@@ -25,6 +25,7 @@ type watcher struct {
 }
 
 func newWatcher(path string, interval time.Duration, callbackUrl string) *watcher {
+	log.L.Info().Str("path", path).Dur("interval", interval).Msgf("Creating new watcher for %s", path)
 	return &watcher{
 		interval:    interval,
 		path:        path,
