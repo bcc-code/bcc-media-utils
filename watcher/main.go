@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/bcc-code/mediabank-bridge/log"
-	"github.com/rs/zerolog"
-	"github.com/samber/lo/parallel"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bcc-code/mediabank-bridge/log"
+	"github.com/rs/zerolog"
+	"github.com/samber/lo/parallel"
 )
 
 func main() {
@@ -30,7 +31,10 @@ func main() {
 	}
 
 	parallel.ForEach(dirsToWatch, func(dir string, _ int) {
-		w := newWatcher(dir, time.Second*time.Duration(interval), *callbackUrlString)
+		w, err := newWatcher(dir, time.Second*time.Duration(interval), *callbackUrlString)
+		if err != nil {
+			panic(err)
+		}
 		w.run(ctx)
 	})
 }
