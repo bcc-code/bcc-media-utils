@@ -24,15 +24,21 @@ type watcher struct {
 	callbackUrl     string
 }
 
-func newWatcher(path string, interval time.Duration, callbackUrl string) *watcher {
+func newWatcher(path string, interval time.Duration, callbackUrl string) (*watcher, error) {
 	log.L.Info().Str("path", path).Dur("interval", interval).Msgf("Creating new watcher for %s", path)
+
+	_, err := os.Stat(strings.Split(path, "*")[0])
+	if err != nil {
+		return nil, err
+	}
+
 	return &watcher{
 		interval:    interval,
 		path:        path,
 		lastUpdated: time.Now(),
 		callbackUrl: callbackUrl,
 		fileSizes:   map[string]int64{},
-	}
+	}, nil
 }
 
 func (w *watcher) doWatch() {
