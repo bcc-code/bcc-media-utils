@@ -23,6 +23,7 @@ func main() {
 	router.GET("/stopReaper", stopReaper)
 	router.GET("/startReaperRecording", startReaperRecording)
 	router.GET("/stopReaperRecording", stopReaperRecording)
+	router.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
 
 	router.Run(":8081")
 }
