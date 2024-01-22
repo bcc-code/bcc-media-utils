@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -35,4 +36,9 @@ func stopProcess(process *os.Process) error {
 	}
 
 	return process.Signal(syscall.SIGINT)
+}
+
+func listFiles(pattern string) []string {
+	files, _ := filepath.Glob(pattern)
+	return files
 }
