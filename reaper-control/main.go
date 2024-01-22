@@ -99,7 +99,6 @@ func stop(c *gin.Context) {
 	}
 
 	c.JSON(200, diff)
-	c.String(200, "Reaper recording stopped")
 }
 
 //// *** LEGACY CODE *** ////
