@@ -14,7 +14,9 @@ import (
 	"github.com/samber/lo"
 )
 
-type watcher struct {
+// waitingWatcher is a file watcher that waits for a file to stop being written to
+// before sending a notification.
+type waitingWatcher struct {
 	path            string
 	interval        time.Duration
 	recentlyUpdated []string
@@ -24,24 +26,7 @@ type watcher struct {
 	callbackUrl     string
 }
 
-func newWatcher(path string, interval time.Duration, callbackUrl string) (*watcher, error) {
-	log.L.Info().Str("path", path).Dur("interval", interval).Msgf("Creating new watcher for %s", path)
-
-	_, err := os.Stat(strings.Split(path, "*")[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return &watcher{
-		interval:    interval,
-		path:        path,
-		lastUpdated: time.Now(),
-		callbackUrl: callbackUrl,
-		fileSizes:   map[string]int64{},
-	}, nil
-}
-
-func (w *watcher) doWatch() {
+func (w *waitingWatcher) doWatch() {
 	files, err := filepath.Glob(w.path)
 	if err != nil {
 		log.L.Error().Err(err).Send()
@@ -106,7 +91,7 @@ type callbackRequest struct {
 	Size      int64     `json:"size"`
 }
 
-func (w *watcher) fileUpdated(path string, file os.FileInfo) {
+func (w *waitingWatcher) fileUpdated(path string, file os.FileInfo) {
 	log.L.Debug().Str("file", file.Name()).Msg("File updated!")
 
 	if w.callbackUrl != "" {
@@ -129,7 +114,7 @@ func (w *watcher) fileUpdated(path string, file os.FileInfo) {
 	}
 }
 
-func (w *watcher) run(ctx context.Context) {
+func (w *waitingWatcher) Run(ctx context.Context) {
 	ticker := time.NewTicker(w.interval)
 	for {
 		select {
