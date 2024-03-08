@@ -25,6 +25,7 @@ func main() {
 
 	router.GET("/start", start)
 	router.GET("/stop", stop)
+	router.GET("/files", files)
 
 	/// *** LEGACY CODE *** ///
 	router.GET("/startReaper", startReaper)
@@ -76,6 +77,13 @@ func start(c *gin.Context) {
 	}
 
 	c.String(200, "Reaper started")
+}
+
+func files(c *gin.Context) {
+	fileList := listFiles(MediaGlob)
+	diff, _ := lo.Difference(fileList, mediaList)
+
+	c.JSON(200, diff)
 }
 
 func stop(c *gin.Context) {
