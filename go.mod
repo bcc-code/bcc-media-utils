@@ -14,7 +14,7 @@ require (
 	github.com/rs/zerolog v1.26.0
 	github.com/samber/lo v1.38.1
 	google.golang.org/api v0.114.0
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
