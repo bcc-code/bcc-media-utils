@@ -1,17 +1,26 @@
 package main
 
 import (
+	"embed"
+	"html/template"
 	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
-	"time"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
-var ReaperAddress string
+var (
+	ReaperAddress string
+	reaperProcess *exec.Cmd
+	mediaList     []string
+	lock          sync.Mutex
+)
+
+//go:embed templates/*.gohtml
+var templateFS embed.FS
 
 func main() {
 	ReaperAddress = os.Getenv("REAPER_ADDRESS")
@@ -19,65 +28,29 @@ func main() {
 		ReaperAddress = "http://10.12.6.12:8080"
 	}
 
+	parsedTemplates, err := template.ParseFS(templateFS, "templates/*.gohtml")
+	if err != nil {
+		panic(err)
+	}
+
 	router := gin.Default()
+	router.SetHTMLTemplate(parsedTemplates)
 
 	router.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
 
 	router.GET("/start", start)
+	router.GET("/status", status)
 	router.GET("/stop", stop)
 	router.GET("/files", files)
 
-	/// *** LEGACY CODE *** ///
-	router.GET("/startReaper", startReaper)
-	router.GET("/stopReaper", stopReaper)
-	router.GET("/startReaperRecording", startReaperRecording)
-	router.GET("/stopReaperRecording", stopReaperRecording)
-	// *** END LEGACY CODE *** ///
+	router.Group("ui").
+		GET("/start", startUI).
+		GET("/stop", stopUI)
 
 	router.Run(":8081")
 }
 
-var reaperProcess *os.Process
-var mediaList []string
-
 const MediaGlob = "D:\\ReaperMedia\\*.wav"
-
-func start(c *gin.Context) {
-	var cmd *exec.Cmd
-
-	mediaList = listFiles(MediaGlob)
-
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("C:\\Program Files\\REAPER (x64)\\reaper.exe")
-	} else if runtime.GOOS == "darwin" {
-		cmd = exec.Command("/Applications/REAPER.app/Contents/MacOS/REAPER")
-	}
-
-	if cmd == nil {
-		c.String(500, "Unsupported operating system")
-		return
-	}
-
-	err := cmd.Start()
-	if err != nil {
-		c.String(500, "Failed to start Reaper: %v", err)
-		return
-	}
-	reaperProcess = cmd.Process
-
-	if isReaperOn(40*time.Second) == false {
-		c.String(500, "Error requesting URL: %v", err)
-		return
-	}
-
-	_, err = http.Get(ReaperAddress + "/_/1013;TRANSPORT")
-	if err != nil {
-		c.String(500, "Error requesting URL: %v", err)
-		return
-	}
-
-	c.String(200, "Reaper started")
-}
 
 func files(c *gin.Context) {
 	fileList := listFiles(MediaGlob)
@@ -86,91 +59,42 @@ func files(c *gin.Context) {
 	c.JSON(200, diff)
 }
 
-func stop(c *gin.Context) {
-	_, err := http.Get(ReaperAddress + "/_/40667;TRANSPORT")
-	if err != nil {
-		c.String(500, "Error requesting URL: %v", err)
+type ReaperStatus struct {
+	Heading      string
+	ProcessState string
+	Recording    bool
+}
+
+func start(c *gin.Context) {
+	err := startReaper()
+
+	if err == errAlreadyStarted {
+		c.String(http.StatusConflict, "Reaper already started")
 		return
 	}
 
+	if err == errUnknownOS {
+		c.String(http.StatusInternalServerError, "Unknown operating system")
+		return
+	}
+
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to start Reaper: %v", err)
+		return
+	}
+
+	c.String(http.StatusOK, "Reaper started")
+}
+
+func stop(c *gin.Context) {
 	fileList := listFiles(MediaGlob)
 	diff, _ := lo.Difference(fileList, mediaList)
 
-	if reaperProcess == nil {
-		c.String(500, "Reaper not started")
-		return
-	}
-
-	if err := stopProcess(reaperProcess); err != nil {
-		c.String(500, "Failed to stop Reaper: %v", err)
-		return
-	}
-
-	c.JSON(200, diff)
-}
-
-//// *** LEGACY CODE *** ////
-
-func startReaper(c *gin.Context) {
-	var cmd *exec.Cmd
-
-	mediaList = listFiles(MediaGlob)
-
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("C:\\Program Files\\REAPER (x64)\\reaper.exe")
-	} else if runtime.GOOS == "darwin" {
-		cmd = exec.Command("/Applications/REAPER.app/Contents/MacOS/REAPER")
-	}
-
-	if cmd == nil {
-		c.String(500, "Unsupported operating system")
-		return
-	}
-
-	err := cmd.Start()
+	err := stopReaper()
 	if err != nil {
-		c.String(500, "Failed to start Reaper: %v", err)
-		return
-	}
-	reaperProcess = cmd.Process
-
-	if isReaperOn(40*time.Second) == false {
-		c.String(500, "Error requesting URL: %v", err)
+		c.String(http.StatusInternalServerError, "Failed to stop Reaper: %v", err)
 		return
 	}
 
-	c.String(200, "Reaper started")
-}
-
-func stopReaper(c *gin.Context) {
-	if reaperProcess == nil {
-		c.String(500, "Reaper not started")
-		return
-	}
-
-	if err := stopProcess(reaperProcess); err != nil {
-		c.String(500, "Failed to stop Reaper: %v", err)
-		return
-	}
-
-	c.String(200, "Reaper stopped")
-}
-
-func startReaperRecording(c *gin.Context) {
-	_, err := http.Get(ReaperAddress + "/_/1013;TRANSPORT")
-	if err != nil {
-		c.String(500, "Error requesting URL: %v", err)
-		return
-	}
-
-	c.String(200, "Reaper recording started")
-}
-
-func stopReaperRecording(c *gin.Context) {
-	_, err := http.Get(ReaperAddress + "/_/40667;TRANSPORT")
-	if err != nil {
-		c.String(500, "Error requesting URL: %v", err)
-		return
-	}
-	c.String(200, "Reaper recording stopped")
+	c.JSON(http.StatusOK, diff)
 }

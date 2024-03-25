@@ -31,8 +31,8 @@ func isReaperOn(timeout time.Duration) bool {
 
 func stopProcess(process *os.Process) error {
 	if runtime.GOOS == "windows" {
-		process.Kill()
-		return nil
+		err := process.Kill()
+		return err
 	}
 
 	return process.Signal(syscall.SIGINT)

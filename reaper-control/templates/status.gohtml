@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>REAPER Status</title>
+</head>
+<body>
+    <p><b>Reaper status:</b> {{.ProcessState}}</p>
+	{{ if .Recording }}
+		<h1 style="color: red">Recording</h1>
+		<a href="/ui/stop">Stop</a>
+	{{ else }}
+		<h1 style="color: green">Idle</h1>
+		<a href="/ui/start">Start</a>
+	{{ end }}
+</body>
+</html>
