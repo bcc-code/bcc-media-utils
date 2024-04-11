@@ -111,6 +111,8 @@ func (w *waitingWatcher) fileUpdated(path string, file os.FileInfo) {
 		if err != nil {
 			log.L.Error().Err(err).Send()
 		}
+
+		log.L.Debug().Str("file", file.Name()).Msg("Posted request!")
 	}
 }
 
