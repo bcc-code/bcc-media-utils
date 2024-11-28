@@ -39,6 +39,7 @@ type avgData struct {
 type average struct {
 	Total int64
 	Count int
+	Max   int64
 }
 
 func (a *average) Add(val int64) {
@@ -161,7 +162,7 @@ func main() {
 
 	r.GET("/average/:group/:value", func(c *gin.Context) {
 		val, err := strconv.ParseInt(c.Param("value"), 10, 64)
-		if err != nil || val < 0 || val > 18 {
+		if err != nil || val < 0 {
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
@@ -190,7 +191,10 @@ func main() {
 		sumTotal := int64(0)
 		sumCont := 0
 		for k, v := range averages {
-			out[k] = v.Get()
+			out[k] = gin.H{
+				"avg": v.Get(),
+				"max": v.Max,
+			}
 			sumTotal += v.Total
 			sumCont += v.Count
 		}
@@ -243,6 +247,9 @@ func main() {
 
 			a := averages[key.Group]
 			a.Add(key.Value)
+			if key.Value > a.Max {
+				a.Max = key.Value
+			}
 			averages[key.Group] = a
 		}
 
