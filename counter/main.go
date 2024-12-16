@@ -192,8 +192,10 @@ func main() {
 		sumCont := 0
 		for k, v := range averages {
 			out[k] = gin.H{
-				"avg": v.Get(),
-				"max": v.Max,
+				"avg":   v.Get(),
+				"max":   v.Max,
+				"count": v.Count,
+				"total": v.Total,
 			}
 			sumTotal += v.Total
 			sumCont += v.Count
@@ -221,6 +223,7 @@ func main() {
 
 		counters = map[string](map[string]int){}
 		averages = map[string]average{}
+		percentCounters = map[string](map[string]float64){}
 		c.JSON(http.StatusOK, gin.H{"reset": "ok"})
 	})
 
