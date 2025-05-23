@@ -17,6 +17,15 @@ import (
 
 var currentSessionID string
 var sessions = make(map[string]*RecordingSession)
+type RecordingSession struct {
+	ID        string
+	Timestamp time.Time
+	Status    string
+	FileDiff  []string
+}
+
+var sessions = make(map[string]*RecordingSession)
+
 var (
 	ReaperAddress string
 	reaperProcess *exec.Cmd
@@ -143,6 +152,8 @@ func stop(c *gin.Context) {
 	if session, exists := sessions[currentSessionID]; exists {
 		session.FileDiff = diff
 		session.Recording = false
+			session.Status = "Stopped"
+		}
 	}
 
 	lastDiff = diff
