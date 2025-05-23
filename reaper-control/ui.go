@@ -23,6 +23,15 @@ func status(c *gin.Context) {
 }
 
 func startUI(c *gin.Context) {
+	sessionID := uuid.New().String()
+	session := &RecordingSession{
+		ID:        sessionID,
+		Timestamp: time.Now(),
+		Status:    "Recording",
+	}
+	currentSessionID = sessionID
+	sessions[currentSessionID] = session
+
 	err := startReaper()
 	if err != nil {
 		errString := url.QueryEscape(err.Error())
