@@ -29,7 +29,7 @@ func startUI(c *gin.Context) {
 	session := &RecordingSession{
 		ID:        sessionID,
 		Timestamp: time.Now(),
-		Status:    "Recording",
+		Recording: true,
 	}
 	currentSessionID = sessionID
 	sessions[currentSessionID] = session
@@ -50,7 +50,7 @@ func stopUI(c *gin.Context) {
 
 	if session, exists := sessions[currentSessionID]; exists {
 		session.FileDiff = diff
-		session.Status = "Stopped"
+		session.Recording = false
 	}
 
 	lastDiff = diff
