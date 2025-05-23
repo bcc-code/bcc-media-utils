@@ -20,7 +20,7 @@ var currentSessionID string
 type RecordingSession struct {
 	ID        string
 	Timestamp time.Time
-	Status    string
+	Recording bool
 	FileDiff  []string
 }
 
@@ -152,7 +152,6 @@ func stop(c *gin.Context) {
 	if session, exists := sessions[currentSessionID]; exists {
 		session.FileDiff = diff
 		session.Recording = false
-		session.Status = "Stopped"
 	}
 
 	lastDiff = diff

@@ -55,7 +55,7 @@ func stopUI(c *gin.Context) {
 
 	if session, exists := sessions[currentSessionID]; exists {
 		session.FileDiff = diff
-		session.Status = "Stopped"
+		session.Recording = false
 	}
 
 	lastDiff = diff
