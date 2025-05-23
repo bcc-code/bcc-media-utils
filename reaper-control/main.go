@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
 	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
@@ -15,16 +16,7 @@ import (
 )
 
 var currentSessionID string
-
-type RecordingSession struct {
-	ID        string
-	Timestamp time.Time
-	Recording bool
-	FileDiff  []string
-}
-
 var sessions = make(map[string]*RecordingSession)
-
 var (
 	ReaperAddress string
 	reaperProcess *exec.Cmd
@@ -35,6 +27,17 @@ var (
 
 //go:embed templates/*.gohtml
 var templateFS embed.FS
+
+type RecordingSession struct {
+	ID        string
+	Timestamp time.Time
+	Recording bool
+	FileDiff  []string
+}
+
+func sessionsHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "sessions.gohtml", sessions)
+}
 
 func main() {
 	ReaperAddress = os.Getenv("REAPER_ADDRESS")
@@ -56,6 +59,7 @@ func main() {
 	router.GET("/status", status)
 	router.GET("/stop", stop)
 	router.GET("/files", files)
+	router.GET("/sessions", sessionsHandler)
 
 	router.Group("ui").
 		GET("/start", startUI).

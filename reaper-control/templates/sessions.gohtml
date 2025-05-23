@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sessions</title>
+    <style>
+        .collapsible {
+            background-color: #777;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+        }
+
+        .active, .collapsible:hover {
+            background-color: #555;
+        }
+
+        .content {
+            padding: 0 18px;
+            display: none;
+            overflow: hidden;
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+<body>
+    <h2>Recording Sessions</h2>
+    <table border="1">
+        <tr>
+            <th>Session ID</th>
+            <th>Timestamp</th>
+            <th>Recording</th>
+            <th>Files</th>
+        </tr>
+        {{range .}}
+        <tr>
+            <td>{{.ID}}</td>
+            <td>{{.Timestamp}}</td>
+            <td>{{.Recording}}</td>
+            <td>
+                <button class="collapsible">Show Files ({{len .FileDiff}})</button>
+                <div class="content">
+                    <ul>
+                        {{range .FileDiff}}
+                        <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    <script>
+        var coll = document.getElementsByClassName("collapsible");
+        for (var i = 0; i < coll.length; i++) {
+            coll[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                var content = this.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            });
+        }
+    </script>
+</body>
+</html>
