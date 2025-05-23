@@ -16,7 +16,7 @@ import (
 )
 
 var currentSessionID string
-var sessions = make(map[string]*RecordingSession)
+
 type RecordingSession struct {
 	ID        string
 	Timestamp time.Time
@@ -152,8 +152,7 @@ func stop(c *gin.Context) {
 	if session, exists := sessions[currentSessionID]; exists {
 		session.FileDiff = diff
 		session.Recording = false
-			session.Status = "Stopped"
-		}
+		session.Status = "Stopped"
 	}
 
 	lastDiff = diff
