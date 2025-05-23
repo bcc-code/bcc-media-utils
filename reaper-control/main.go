@@ -7,11 +7,16 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
+var currentSessionID string
+var sessions = make(map[string]*RecordingSession)
 var (
 	ReaperAddress string
 	reaperProcess *exec.Cmd
@@ -22,6 +27,17 @@ var (
 
 //go:embed templates/*.gohtml
 var templateFS embed.FS
+
+type RecordingSession struct {
+	ID        string
+	Timestamp time.Time
+	Recording bool
+	FileDiff  []string
+}
+
+func sessionsHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "sessions.gohtml", sessions)
+}
 
 func main() {
 	ReaperAddress = os.Getenv("REAPER_ADDRESS")
@@ -43,6 +59,7 @@ func main() {
 	router.GET("/status", status)
 	router.GET("/stop", stop)
 	router.GET("/files", files)
+	router.GET("/sessions", sessionsHandler)
 
 	router.Group("ui").
 		GET("/start", startUI).
@@ -54,7 +71,19 @@ func main() {
 const MediaGlob = "D:\\ReaperMedia\\*.wav"
 
 func files(c *gin.Context) {
-	diff := lastDiff
+	sessionID := c.Query("session_id")
+	var diff []string
+
+	if sessionID != "" {
+		if session, exists := sessions[sessionID]; exists {
+			diff = session.FileDiff
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+	} else {
+		diff = lastDiff
+	}
 
 	if reaperProcess != nil && reaperProcess.ProcessState == nil {
 		// Reaper is recording, check for new files
@@ -72,24 +101,33 @@ type ReaperStatus struct {
 }
 
 func start(c *gin.Context) {
+	sessionID := uuid.New().String()
+	session := &RecordingSession{
+		ID:        sessionID,
+		Timestamp: time.Now(),
+		Recording: true,
+	}
+	currentSessionID = sessionID
+	sessions[currentSessionID] = session
+
 	err := startReaper()
 
 	if err == errAlreadyStarted {
-		c.String(http.StatusConflict, "Reaper already started")
+		c.JSON(http.StatusConflict, gin.H{"error": "Reaper already started"})
 		return
 	}
 
 	if err == errUnknownOS {
-		c.String(http.StatusInternalServerError, "Unknown operating system")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown operating system"})
 		return
 	}
 
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to start Reaper: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start Reaper", "details": err.Error()})
 		return
 	}
 
-	c.String(http.StatusOK, "Reaper started")
+	c.JSON(http.StatusOK, gin.H{"message": "Reaper started", "session_id": sessionID})
 }
 
 func stop(c *gin.Context) {
@@ -100,6 +138,11 @@ func stop(c *gin.Context) {
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to stop Reaper: %v", err)
 		return
+	}
+
+	if session, exists := sessions[currentSessionID]; exists {
+		session.FileDiff = diff
+		session.Recording = false
 	}
 
 	lastDiff = diff

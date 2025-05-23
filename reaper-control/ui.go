@@ -3,8 +3,11 @@ package main
 import (
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 func status(c *gin.Context) {
@@ -22,6 +25,15 @@ func status(c *gin.Context) {
 }
 
 func startUI(c *gin.Context) {
+	sessionID := uuid.New().String()
+	session := &RecordingSession{
+		ID:        sessionID,
+		Timestamp: time.Now(),
+		Recording: true,
+	}
+	currentSessionID = sessionID
+	sessions[currentSessionID] = session
+
 	err := startReaper()
 	if err != nil {
 		errString := url.QueryEscape(err.Error())
@@ -33,6 +45,16 @@ func startUI(c *gin.Context) {
 }
 
 func stopUI(c *gin.Context) {
+	fileList := listFiles(MediaGlob)
+	diff, _ := lo.Difference(fileList, mediaList)
+
+	if session, exists := sessions[currentSessionID]; exists {
+		session.FileDiff = diff
+		session.Recording = false
+	}
+
+	lastDiff = diff
+
 	err := stopReaper()
 	if err != nil {
 		errString := url.QueryEscape(err.Error())
