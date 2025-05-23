@@ -7,10 +7,21 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
+	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
+
+type RecordingSession struct {
+	ID        string
+	Timestamp time.Time
+	Status    string
+	FileDiff  []string
+}
+
+var sessions = make(map[string]*RecordingSession)
 
 var (
 	ReaperAddress string
@@ -54,7 +65,19 @@ func main() {
 const MediaGlob = "D:\\ReaperMedia\\*.wav"
 
 func files(c *gin.Context) {
-	diff := lastDiff
+	sessionID := c.Query("session_id")
+	var diff []string
+
+	if sessionID != "" {
+		if session, exists := sessions[sessionID]; exists {
+			diff = session.FileDiff
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+	} else {
+		diff = lastDiff
+	}
 
 	if reaperProcess != nil && reaperProcess.ProcessState == nil {
 		// Reaper is recording, check for new files
@@ -72,6 +95,14 @@ type ReaperStatus struct {
 }
 
 func start(c *gin.Context) {
+	sessionID := uuid.New().String()
+	session := &RecordingSession{
+		ID:        sessionID,
+		Timestamp: time.Now(),
+		Status:    "Recording",
+	}
+	sessions[sessionID] = session
+
 	err := startReaper()
 
 	if err == errAlreadyStarted {
@@ -89,7 +120,7 @@ func start(c *gin.Context) {
 		return
 	}
 
-	c.String(http.StatusOK, "Reaper started")
+	c.JSON(http.StatusOK, gin.H{"message": "Reaper started", "session_id": sessionID})
 }
 
 func stop(c *gin.Context) {
@@ -100,6 +131,13 @@ func stop(c *gin.Context) {
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to stop Reaper: %v", err)
 		return
+	}
+
+	if sessionID := c.Query("session_id"); sessionID != "" {
+		if session, exists := sessions[sessionID]; exists {
+			session.FileDiff = diff
+			session.Status = "Stopped"
+		}
 	}
 
 	lastDiff = diff
