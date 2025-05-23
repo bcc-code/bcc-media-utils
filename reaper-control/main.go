@@ -14,6 +14,8 @@ import (
 	"github.com/samber/lo"
 )
 
+var currentSessionID string
+
 type RecordingSession struct {
 	ID        string
 	Timestamp time.Time
@@ -101,7 +103,8 @@ func start(c *gin.Context) {
 		Timestamp: time.Now(),
 		Status:    "Recording",
 	}
-	sessions[sessionID] = session
+	currentSessionID = sessionID
+	sessions[currentSessionID] = session
 
 	err := startReaper()
 
@@ -133,11 +136,9 @@ func stop(c *gin.Context) {
 		return
 	}
 
-	if sessionID := c.Query("session_id"); sessionID != "" {
-		if session, exists := sessions[sessionID]; exists {
-			session.FileDiff = diff
-			session.Status = "Stopped"
-		}
+	if session, exists := sessions[currentSessionID]; exists {
+		session.FileDiff = diff
+		session.Status = "Stopped"
 	}
 
 	lastDiff = diff
