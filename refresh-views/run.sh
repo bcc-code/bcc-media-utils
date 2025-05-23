@@ -1,3 +1,5 @@
+set -f
+
 # Set project and dataset
 PROJECT_ID="bccm-k8s-main"
 DATASET="rudderstack_prod"
@@ -34,11 +36,14 @@ declare -a VIEWS=(
 # Loop through each view
 for VIEW_NAME in "${VIEWS[@]}"
 do
+	# bq show --format=prettyjson $PROJECT_ID:$DATASET.$VIEW_NAME
     # Get view definition
     VIEW_QUERY=$(bq show --format=prettyjson $PROJECT_ID:$DATASET.$VIEW_NAME | jq -r '.view.query')
 
+	echo $VIEW_QUERY
+
     # Delete the view
-    bq rm -f $PROJECT_ID:$DATASET.$VIEW_NAME
+	bq rm -f $PROJECT_ID:$DATASET.$VIEW_NAME
 
     # Recreate the view
     bq mk --use_legacy_sql=false --view "$VIEW_QUERY" $PROJECT_ID:$DATASET.$VIEW_NAME
