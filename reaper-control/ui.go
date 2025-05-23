@@ -53,6 +53,11 @@ func stopUI(c *gin.Context) {
 		session.Recording = false
 	}
 
+	if session, exists := sessions[currentSessionID]; exists {
+		session.FileDiff = diff
+		session.Status = "Stopped"
+	}
+
 	lastDiff = diff
 
 	err := stopReaper()
