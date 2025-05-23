@@ -37,6 +37,11 @@ func stopUI(c *gin.Context) {
 	fileList := listFiles(MediaGlob)
 	diff, _ := lo.Difference(fileList, mediaList)
 
+	if session, exists := sessions[currentSessionID]; exists {
+		session.FileDiff = diff
+		session.Status = "Stopped"
+	}
+
 	lastDiff = diff
 
 	err := stopReaper()
