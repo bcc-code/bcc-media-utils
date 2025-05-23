@@ -15,8 +15,6 @@ import (
 	"github.com/samber/lo"
 )
 
-var currentSessionID string
-
 type RecordingSession struct {
 	ID        string
 	Timestamp time.Time
@@ -24,25 +22,18 @@ type RecordingSession struct {
 	FileDiff  []string
 }
 
-var sessions = make(map[string]*RecordingSession)
-
 var (
-	ReaperAddress string
-	reaperProcess *exec.Cmd
-	mediaList     []string
-	lastDiff      []string
-	lock          sync.Mutex
+	ReaperAddress    string
+	reaperProcess    *exec.Cmd
+	mediaList        []string
+	lastDiff         []string
+	lock             sync.Mutex
+	sessions         = make(map[string]*RecordingSession)
+	currentSessionID string
 )
 
 //go:embed templates/*.gohtml
 var templateFS embed.FS
-
-type RecordingSession struct {
-	ID        string
-	Timestamp time.Time
-	Recording bool
-	FileDiff  []string
-}
 
 func sessionsHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "sessions.gohtml", sessions)
