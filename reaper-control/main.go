@@ -16,6 +16,7 @@ var (
 	ReaperAddress string
 	reaperProcess *exec.Cmd
 	mediaList     []string
+	lastDiff      []string
 	lock          sync.Mutex
 )
 
@@ -53,10 +54,15 @@ func main() {
 const MediaGlob = "D:\\ReaperMedia\\*.wav"
 
 func files(c *gin.Context) {
-	fileList := listFiles(MediaGlob)
-	diff, _ := lo.Difference(fileList, mediaList)
+	diff := lastDiff
 
-	c.JSON(200, diff)
+	if reaperProcess != nil && reaperProcess.ProcessState == nil {
+		// Reaper is recording, check for new files
+		fileList := listFiles(MediaGlob)
+		diff, _ = lo.Difference(fileList, mediaList)
+	}
+
+	c.JSON(http.StatusOK, diff)
 }
 
 type ReaperStatus struct {
@@ -96,5 +102,6 @@ func stop(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, diff)
+	lastDiff = diff
+	c.JSON(http.StatusOK, lastDiff)
 }
