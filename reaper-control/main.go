@@ -106,17 +106,17 @@ func start(c *gin.Context) {
 	err := startReaper()
 
 	if err == errAlreadyStarted {
-		c.String(http.StatusConflict, "Reaper already started")
+		c.JSON(http.StatusConflict, gin.H{"error": "Reaper already started"})
 		return
 	}
 
 	if err == errUnknownOS {
-		c.String(http.StatusInternalServerError, "Unknown operating system")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unknown operating system"})
 		return
 	}
 
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to start Reaper: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start Reaper", "details": err.Error()})
 		return
 	}
 
