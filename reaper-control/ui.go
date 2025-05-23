@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func status(c *gin.Context) {
@@ -33,6 +34,11 @@ func startUI(c *gin.Context) {
 }
 
 func stopUI(c *gin.Context) {
+	fileList := listFiles(MediaGlob)
+	diff, _ := lo.Difference(fileList, mediaList)
+
+	lastDiff = diff
+
 	err := stopReaper()
 	if err != nil {
 		errString := url.QueryEscape(err.Error())
