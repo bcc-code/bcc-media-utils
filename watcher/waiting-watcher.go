@@ -113,6 +113,8 @@ func (w *waitingWatcher) fileUpdated(path string, file os.FileInfo) {
 		}
 
 		log.L.Debug().Str("file", file.Name()).Msg("Posted request!")
+	} else {
+		log.L.Error().Msg("No callback url defined!")
 	}
 }
 
