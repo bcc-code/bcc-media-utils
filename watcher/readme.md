@@ -17,6 +17,14 @@ Whenever a change is detected, a webhook is triggered.
   rename-in-place from causing duplicate callbacks, while a genuinely deleted
   and recreated file is still reported again.
 
+## Delivery semantics
+
+Callbacks are delivered at-least-once: if the callback endpoint is unreachable
+or returns a non-2xx status, the file is not marked as reported and the
+notification is retried on the next poll. The receiver should therefore treat
+callbacks idempotently (the reported `path`, `size` and `updatedAt` can be used
+for deduplication).
+
 ## Cache
 
 Under certain circumstances the results of the `File.Stat()` call are cached on

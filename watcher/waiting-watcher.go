@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,9 +73,14 @@ func (w *waitingWatcher) doWatch() {
 			log.L.Debug().Str("file", file).Int("stableTicks", st.stableTicks).Msg("File unchanged")
 			continue
 		}
+		log.L.Info().Str("file", stats.Name()).Int64("size", size).Time("modTime", stats.ModTime()).Msg("File stable, reporting")
+		if err := postCallback(w.callbackUrl, file, stats); err != nil {
+			// Keep the file tracked so the next tick retries the callback.
+			log.L.Error().Err(err).Str("file", stats.Name()).Msg("Callback failed, will retry next tick")
+			continue
+		}
 		delete(w.tracked, file)
 		w.filesReported[file] = 0
-		w.fileUpdated(file, stats)
 	}
 
 	// Drop tracked files that vanished before ever stabilizing.
@@ -110,49 +113,9 @@ func (w *waitingWatcher) doWatch() {
 	}
 }
 
-type callbackRequest struct {
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Size      int64     `json:"size"`
-}
-
-func (w *waitingWatcher) fileUpdated(path string, file os.FileInfo) {
-	log.L.Info().Str("file", file.Name()).Int64("size", file.Size()).Time("modTime", file.ModTime()).Msg("File stable, reporting")
-
-	if w.callbackUrl == "" {
-		log.L.Error().Msg("No callback url defined!")
-		return
-	}
-
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		log.L.Error().Err(err).Send()
-	}
-
-	str, _ := json.Marshal(callbackRequest{
-		Name:      file.Name(),
-		Size:      file.Size(),
-		Path:      absPath,
-		UpdatedAt: file.ModTime(),
-	})
-
-	resp, err := httpClient.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
-	if err != nil {
-		log.L.Error().Err(err).Str("file", file.Name()).Msg("Callback POST failed")
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		log.L.Error().Int("status", resp.StatusCode).Str("file", file.Name()).Msg("Callback returned non-success status")
-		return
-	}
-
-	log.L.Debug().Str("file", file.Name()).Msg("Posted request!")
-}
-
 func (w *waitingWatcher) Run(ctx context.Context) {
 	ticker := time.NewTicker(w.interval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:

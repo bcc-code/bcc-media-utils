@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,88 +10,84 @@ import (
 	"github.com/bcc-code/mediabank-bridge/log"
 )
 
+// directWatcher reports new files immediately, without waiting for them to
+// stop changing. Files already present at startup are not reported.
 type directWatcher struct {
 	path          string
 	interval      time.Duration
-	filesReported map[string]struct{}
+	missingTicks  int            // consecutive missing polls before a reported file is forgotten
+	filesReported map[string]int // reported file -> consecutive missing-tick count
 	callbackUrl   string
 }
 
 func (w *directWatcher) doWatch() {
 	files, err := filepath.Glob(w.path)
 	if err != nil {
-		log.L.Error().Err(err).Send()
+		log.L.Error().Err(err).Str("path", w.path).Send()
 		return
 	}
 
-	for _, f := range files {
-		if _, found := w.filesReported[f]; !found {
-			stats, err := os.Stat(f)
-			if err != nil {
-				log.L.Error().Err(err).Send()
-				return
-			}
-			if _, found := w.filesReported[f]; found {
-				continue
-			}
+	seen := map[string]struct{}{}
+	for _, file := range files {
+		seen[file] = struct{}{}
+		if _, reported := w.filesReported[file]; reported {
+			w.filesReported[file] = 0
+			continue
+		}
+		stats, err := os.Stat(file)
+		if err != nil {
+			log.L.Warn().Err(err).Str("file", file).Msg("stat failed, skipping this tick")
+			continue
+		}
+		if stats.IsDir() || strings.HasPrefix(stats.Name(), ".") {
+			continue
+		}
+		log.L.Info().Str("file", stats.Name()).Int64("size", stats.Size()).Msg("New file, reporting")
+		if err := postCallback(w.callbackUrl, file, stats); err != nil {
+			// Not marked as reported, so the next tick retries the callback.
+			log.L.Error().Err(err).Str("file", stats.Name()).Msg("Callback failed, will retry next tick")
+			continue
+		}
+		w.filesReported[file] = 0
+	}
 
-			if stats.IsDir() || strings.HasPrefix(stats.Name(), ".") {
-				continue
-			}
-
-			w.fileUpdated(f, stats)
-			w.filesReported[f] = struct{}{}
+	// Forget reported files only after several consecutive missing polls, so a
+	// transient NFS blip cannot cause a duplicate callback while genuinely
+	// deleted files do not grow the map forever.
+	for file, missing := range w.filesReported {
+		if _, ok := seen[file]; ok {
+			continue
+		}
+		missing++
+		if missing >= w.missingTicks {
+			delete(w.filesReported, file)
+			log.L.Info().Str("file", file).Msg("Reported file gone, will report again if recreated")
+		} else {
+			w.filesReported[file] = missing
 		}
 	}
 }
 
 func (w *directWatcher) Run(ctx context.Context) {
+	// Everything present at startup counts as already reported.
 	files, err := filepath.Glob(w.path)
 	if err != nil {
-		log.L.Error().Err(err).Send()
-		return
+		// Glob only fails on a malformed pattern — a config error, so fail loudly
+		// instead of leaving this watcher silently dead.
+		log.L.Fatal().Err(err).Str("path", w.path).Msg("Invalid watch pattern")
 	}
-
 	for _, file := range files {
-		w.filesReported[file] = struct{}{}
+		w.filesReported[file] = 0
 	}
 
 	ticker := time.NewTicker(w.interval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			w.doWatch()
 		case <-ctx.Done():
 			return
-		}
-	}
-}
-
-// TODO: This is a direct copy of the waitingWatcher.fileUpdated method. It should be refactored to be shared.
-func (w *directWatcher) fileUpdated(path string, file os.FileInfo) {
-	log.L.Debug().Str("file", file.Name()).Msg("File updated!")
-
-	if w.callbackUrl != "" {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			log.L.Error().Err(err).Send()
-		}
-
-		str, _ := json.Marshal(callbackRequest{
-			Name:      file.Name(),
-			Size:      file.Size(),
-			Path:      absPath,
-			UpdatedAt: file.ModTime(),
-		})
-
-		resp, err := httpClient.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
-		if err != nil {
-			log.L.Error().Err(err).Str("file", file.Name()).Msg("Callback POST failed")
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode >= 300 {
-			log.L.Error().Int("status", resp.StatusCode).Str("file", file.Name()).Msg("Callback returned non-success status")
 		}
 	}
 }

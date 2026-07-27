@@ -119,3 +119,57 @@ func TestWaitingWatcher(t *testing.T) {
 		t.Fatalf("expected 2 posts after recreate and stabilize, got %d", posts.Load())
 	}
 }
+
+func TestWaitingWatcherCallbackRetry(t *testing.T) {
+	var fail atomic.Bool
+	var successes atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		successes.Add(1)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	file := filepath.Join(dir, "rec.mxf")
+	if err := os.WriteFile(file, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	w := &waitingWatcher{
+		path:          filepath.Join(dir, "*.mxf"),
+		stableTicks:   1,
+		missingTicks:  2,
+		tracked:       map[string]*fileState{},
+		filesReported: map[string]int{},
+		callbackUrl:   server.URL,
+	}
+
+	fail.Store(true)
+	w.doWatch() // first sight
+	w.doWatch() // stable -> report attempt fails
+	w.doWatch() // retried, still failing
+	if successes.Load() != 0 {
+		t.Fatalf("expected no successful posts while callback fails, got %d", successes.Load())
+	}
+	if _, reported := w.filesReported[file]; reported {
+		t.Fatal("file must not be marked reported while callbacks fail")
+	}
+
+	// Endpoint recovers: the next tick delivers the event exactly once.
+	fail.Store(false)
+	w.doWatch()
+	if successes.Load() != 1 {
+		t.Fatalf("expected 1 successful post after recovery, got %d", successes.Load())
+	}
+	if _, reported := w.filesReported[file]; !reported {
+		t.Fatal("file must be marked reported after successful callback")
+	}
+
+	w.doWatch()
+	if successes.Load() != 1 {
+		t.Fatalf("expected no duplicate post, got %d", successes.Load())
+	}
+}
