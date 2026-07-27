@@ -16,6 +16,9 @@ Whenever a change is detected, a webhook is triggered.
   for re-reporting (default `3`). This prevents transient NFS errors or
   rename-in-place from causing duplicate callbacks, while a genuinely deleted
   and recreated file is still reported again.
+- `WATCHER_DB_PATH` (or the `-db` flag, which takes precedence) — path to the
+  sqlite database that persists watcher state (default `watcher.db` in the
+  working directory).
 
 ## Delivery semantics
 
@@ -24,6 +27,22 @@ or returns a non-2xx status, the file is not marked as reported and the
 notification is retried on the next poll. The receiver should therefore treat
 callbacks idempotently (the reported `path`, `size` and `updatedAt` can be used
 for deduplication).
+
+## State persistence
+
+The set of already-reported files is persisted to a sqlite database
+(`WATCHER_DB_PATH`), so a restart does not re-report files that were already
+delivered. Database migrations run automatically at startup; the watcher fails
+to start if the database cannot be opened or written.
+
+- Stability counters are not persisted: a file that was mid-write during a
+  restart simply re-waits `WATCHER_STABLE_TICKS` polls before being reported.
+- In `-no-wait` mode, the very first run against a fresh database seeds it with
+  all files currently matching the pattern, without callbacks (same as the old
+  startup snapshot). On later restarts the persisted set decides instead, so
+  files that appeared while the watcher was down are reported.
+- In the container image (distroless, read-only `/`), `WATCHER_DB_PATH` must
+  point to a writable mounted volume, e.g. `/data/watcher.db`.
 
 ## Cache
 

@@ -18,9 +18,10 @@ type directWatcher struct {
 	missingTicks  int            // consecutive missing polls before a reported file is forgotten
 	filesReported map[string]int // reported file -> consecutive missing-tick count
 	callbackUrl   string
+	store         reportedStore
 }
 
-func (w *directWatcher) doWatch() {
+func (w *directWatcher) doWatch(ctx context.Context) {
 	files, err := filepath.Glob(w.path)
 	if err != nil {
 		log.L.Error().Err(err).Str("path", w.path).Send()
@@ -48,6 +49,11 @@ func (w *directWatcher) doWatch() {
 			log.L.Error().Err(err).Str("file", stats.Name()).Msg("Callback failed, will retry next tick")
 			continue
 		}
+		if err := w.store.Add(ctx, file); err != nil {
+			// The in-memory map stays authoritative; worst case is a duplicate
+			// callback after a restart, which receivers must tolerate anyway.
+			log.L.Error().Err(err).Str("file", file).Msg("Failed to persist reported file")
+		}
 		w.filesReported[file] = 0
 	}
 
@@ -61,6 +67,9 @@ func (w *directWatcher) doWatch() {
 		missing++
 		if missing >= w.missingTicks {
 			delete(w.filesReported, file)
+			if err := w.store.Remove(ctx, file); err != nil {
+				log.L.Error().Err(err).Str("file", file).Msg("Failed to remove reported file from store")
+			}
 			log.L.Info().Str("file", file).Msg("Reported file gone, will report again if recreated")
 		} else {
 			w.filesReported[file] = missing
@@ -69,23 +78,12 @@ func (w *directWatcher) doWatch() {
 }
 
 func (w *directWatcher) Run(ctx context.Context) {
-	// Everything present at startup counts as already reported.
-	files, err := filepath.Glob(w.path)
-	if err != nil {
-		// Glob only fails on a malformed pattern — a config error, so fail loudly
-		// instead of leaving this watcher silently dead.
-		log.L.Fatal().Err(err).Str("path", w.path).Msg("Invalid watch pattern")
-	}
-	for _, file := range files {
-		w.filesReported[file] = 0
-	}
-
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			w.doWatch()
+			w.doWatch(ctx)
 		case <-ctx.Done():
 			return
 		}

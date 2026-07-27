@@ -20,3 +20,4 @@ watcher/watcher
 .DS_Store
 
 .idea
+watcher/watcher.db*
