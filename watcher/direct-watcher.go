@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,9 +86,14 @@ func (w *directWatcher) fileUpdated(path string, file os.FileInfo) {
 			UpdatedAt: file.ModTime(),
 		})
 
-		_, err = http.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
+		resp, err := httpClient.Post(w.callbackUrl, "application/json", bytes.NewReader(str))
 		if err != nil {
-			log.L.Error().Err(err).Send()
+			log.L.Error().Err(err).Str("file", file.Name()).Msg("Callback POST failed")
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			log.L.Error().Int("status", resp.StatusCode).Str("file", file.Name()).Msg("Callback returned non-success status")
 		}
 	}
 }

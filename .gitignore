@@ -16,6 +16,7 @@
 
 .env
 bq-importer/bq-importe*
+watcher/watcher
 .DS_Store
 
 .idea

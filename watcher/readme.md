@@ -4,6 +4,19 @@ Iterates through specified folders for file changes.
 
 Whenever a change is detected, a webhook is triggered.
 
+## Configuration
+
+- `WATCHER_INTERVAL` — poll interval in seconds (default `10`).
+- `WATCHER_STABLE_TICKS` — number of consecutive polls a file's size and mtime
+  must remain unchanged before it is considered done and reported (default `3`,
+  i.e. 30 seconds of quiet at the default interval). Only applies to the
+  default (waiting) mode.
+- `WATCHER_MISSING_TICKS` — number of consecutive polls an already-reported
+  file must be confirmed missing before it is forgotten and becomes eligible
+  for re-reporting (default `3`). This prevents transient NFS errors or
+  rename-in-place from causing duplicate callbacks, while a genuinely deleted
+  and recreated file is still reported again.
+
 ## Cache
 
 Under certain circumstances the results of the `File.Stat()` call are cached on

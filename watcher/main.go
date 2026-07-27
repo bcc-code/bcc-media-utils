@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -13,8 +14,18 @@ import (
 	"github.com/samber/lo/parallel"
 )
 
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 type Watcher interface {
 	Run(ctx context.Context)
+}
+
+func envInt(name string, def int) int {
+	v, err := strconv.Atoi(os.Getenv(name))
+	if err != nil || v < 1 {
+		return def
+	}
+	return v
 }
 
 func newWatcher(path string, interval time.Duration, callbackUrl string, noWait bool) (Watcher, error) {
@@ -33,13 +44,23 @@ func newWatcher(path string, interval time.Duration, callbackUrl string, noWait 
 		}, nil
 	}
 
-	log.L.Info().Str("path", path).Dur("interval", interval).Msgf("Creating new watcher for %s", path)
+	stableTicks := envInt("WATCHER_STABLE_TICKS", 3)
+	missingTicks := envInt("WATCHER_MISSING_TICKS", 3)
+
+	log.L.Info().
+		Str("path", path).
+		Dur("interval", interval).
+		Int("stableTicks", stableTicks).
+		Int("missingTicks", missingTicks).
+		Msgf("Creating new watcher for %s", path)
 	return &waitingWatcher{
-		interval:    interval,
-		path:        path,
-		lastUpdated: time.Now(),
-		callbackUrl: callbackUrl,
-		fileSizes:   map[string]int64{},
+		interval:      interval,
+		path:          path,
+		stableTicks:   stableTicks,
+		missingTicks:  missingTicks,
+		tracked:       map[string]*fileState{},
+		filesReported: map[string]int{},
+		callbackUrl:   callbackUrl,
 	}, nil
 }
 
@@ -56,10 +77,7 @@ func main() {
 
 	ctx := context.Background()
 
-	interval, err := strconv.Atoi(os.Getenv("WATCHER_INTERVAL"))
-	if err != nil {
-		interval = 10
-	}
+	interval := envInt("WATCHER_INTERVAL", 10)
 
 	parallel.ForEach(dirsToWatch, func(dir string, _ int) {
 		var w Watcher
